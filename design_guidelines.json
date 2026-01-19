@@ -1,0 +1,208 @@
+{
+  "identity": {
+    "name": "E1",
+    "role": "The Anti-AI Designer",
+    "principles": [
+      "Fusion over Imitation",
+      "Emotion First",
+      "Content is King",
+      "Zoom In",
+      "Negative Space",
+      "Contrast"
+    ]
+  },
+  "typography": {
+    "headings": {
+      "font_family": "Playfair Display, serif",
+      "weights": ["400", "600", "700"],
+      "usage": "Main headings (H1-H3), Hero sections",
+      "letter_spacing": "tracking-tight"
+    },
+    "body": {
+      "font_family": "Manrope, sans-serif",
+      "weights": ["400", "500", "600"],
+      "usage": "Paragraphs, UI text, Labels",
+      "letter_spacing": "tracking-normal"
+    },
+    "monospace": {
+      "font_family": "JetBrains Mono, monospace",
+      "usage": "Code snippets, Order IDs, Technical data"
+    },
+    "scale": {
+      "h1": "text-5xl md:text-7xl font-bold leading-tight",
+      "h2": "text-4xl md:text-5xl font-semibold leading-tight",
+      "h3": "text-2xl md:text-3xl font-medium",
+      "body_lg": "text-lg md:text-xl leading-relaxed",
+      "body_base": "text-base leading-relaxed",
+      "caption": "text-sm text-muted-foreground uppercase tracking-widest"
+    }
+  },
+  "colors": {
+    "theme": "light",
+    "palette": {
+      "primary": {
+        "DEFAULT": "#2D4A3E",
+        "foreground": "#FFFFFF",
+        "description": "Deep Forest Green - Trust, Growth, Stability"
+      },
+      "secondary": {
+        "DEFAULT": "#D4A373",
+        "foreground": "#000000",
+        "description": "Earthy Terracotta/Sand - Organic, Grounded"
+      },
+      "accent": {
+        "DEFAULT": "#E9C46A",
+        "foreground": "#000000",
+        "description": "Harvest Gold - Optimism, Freshness"
+      },
+      "background": {
+        "DEFAULT": "#FAF9F6",
+        "paper": "#FFFFFF",
+        "subtle": "#F0F1EE"
+      },
+      "text": {
+        "primary": "#1A1C1A",
+        "secondary": "#4A4F4A",
+        "muted": "#8C928C"
+      },
+      "status": {
+        "success": "#40916C",
+        "warning": "#E9C46A",
+        "error": "#D9534F",
+        "info": "#52B788"
+      }
+    },
+    "gradients": {
+      "hero": "bg-gradient-to-b from-[#FAF9F6] to-[#E8EBE8]",
+      "card_hover": "bg-gradient-to-br from-white to-[#F0F1EE]"
+    }
+  },
+  "spacing": {
+    "scale": ["p-1", "p-2", "p-4", "p-6", "p-8", "p-12", "p-16", "p-20", "p-24", "p-32"],
+    "container_padding": "px-6 md:px-12 lg:px-24",
+    "section_spacing": "py-20 md:py-32",
+    "element_spacing": "gap-6 md:gap-8"
+  },
+  "layout": {
+    "marketing": {
+      "grid": "grid-cols-1 md:grid-cols-12 gap-8",
+      "modes": {
+        "tetris": "Asymmetrical grid for visual interest. Mix col-span-4, col-span-8, col-span-6."
+      }
+    },
+    "dashboard": {
+      "grid": "grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6",
+      "modes": {
+        "bento": "Dense grid. Summary cards (span-1), Main charts (span-2 or 3), Feeds (row-span-2)."
+      }
+    },
+    "container": {
+      "max_width": "max-w-7xl mx-auto"
+    }
+  },
+  "components": {
+    "buttons": {
+      "primary": "bg-primary text-primary-foreground rounded-full px-8 py-3 hover:bg-primary/90 transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5",
+      "secondary": "bg-white border border-input text-primary hover:bg-accent/10 rounded-full px-8 py-3 transition-all",
+      "ghost": "hover:bg-accent/10 text-primary rounded-full px-6 py-2"
+    },
+    "cards": {
+      "base": "bg-white rounded-2xl border border-border/40 shadow-sm hover:shadow-md transition-all duration-300",
+      "marketing": "bg-[#F0F1EE] rounded-3xl border-none overflow-hidden",
+      "dashboard": "bg-white rounded-xl border border-border/60 shadow-sm"
+    },
+    "inputs": {
+      "base": "rounded-lg border-border/60 bg-white/50 focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+    }
+  },
+  "visual_enhancers": {
+    "radius": {
+      "default": "rounded-xl",
+      "large": "rounded-3xl",
+      "full": "rounded-full"
+    },
+    "shadows": {
+      "soft": "shadow-[0_8px_30px_rgb(0,0,0,0.04)]",
+      "hover": "shadow-[0_8px_30px_rgb(0,0,0,0.12)]"
+    },
+    "textures": {
+      "grain": "bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 mix-blend-soft-light pointer-events-none fixed inset-0 z-50"
+    }
+  },
+  "motion": {
+    "transitions": "transition-all duration-300 ease-out",
+    "hover_lift": "hover:-translate-y-1",
+    "entrance": {
+      "fade_in_up": "animate-in fade-in slide-in-from-bottom-4 duration-700"
+    }
+  },
+  "images": {
+    "hero": [
+      {
+        "url": "https://images.unsplash.com/photo-1562672767-51120ccfdfeb?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2NDJ8MHwxfHNlYXJjaHwxfHxmYXJtZXIlMjBpbiUyMGZpZWxkJTIwaG9sZGluZyUyMHZlZ2V0YWJsZXN8ZW58MHx8fHwxNzY4ODE2ODQ5fDA&ixlib=rb-4.1.0&q=85",
+        "alt": "Tobacco farmer owner",
+        "category": "hero_background"
+      },
+      {
+        "url": "https://images.unsplash.com/photo-1708417152629-65db5c36a6d8?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2NDJ8MHwxfHNlYXJjaHw0fHxmYXJtZXIlMjBpbiUyMGZpZWxkJTIwaG9sZGluZyUyMHZlZ2V0YWJsZXN8ZW58MHx8fHwxNzY4ODE2ODQ5fDA&ixlib=rb-4.1.0&q=85",
+        "alt": "Farmers in India",
+        "category": "community"
+      }
+    ],
+    "products": [
+      {
+        "url": "https://images.unsplash.com/photo-1672075805815-7cfb52f02e3f?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2NDJ8MHwxfHNlYXJjaHwxfHxmcmVzaCUyMG9yZ2FuaWMlMjB2ZWdldGFibGVzJTIwZnJ1aXRzJTIwbWFya2V0fGVufDB8fHx8MTc2ODgxNjg1M3ww&ixlib=rb-4.1.0&q=85",
+        "alt": "Mushrooms and food boxes",
+        "category": "product_listing"
+      },
+      {
+        "url": "https://images.unsplash.com/photo-1605447813584-26aeb3f8e6ae?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2NDJ8MHwxfHNlYXJjaHwyfHxmcmVzaCUyMG9yZ2FuaWMlMjB2ZWdldGFibGVzJTIwZnJ1aXRzJTIwbWFya2V0fGVufDB8fHx8MTc2ODgxNjg1M3ww&ixlib=rb-4.1.0&q=85",
+        "alt": "Yellow and green fruits",
+        "category": "product_listing"
+      },
+      {
+        "url": "https://images.unsplash.com/photo-1755712691769-f013764f2d70?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2NDJ8MHwxfHNlYXJjaHw0fHxmcmVzaCUyMG9yZ2FuaWMlMjB2ZWdldGFibGVzJTIwZnJ1aXRzJTIwbWFya2V0fGVufDB8fHx8MTc2ODgxNjg1M3ww&ixlib=rb-4.1.0&q=85",
+        "alt": "Tropical fruits market",
+        "category": "product_listing"
+      }
+    ],
+    "tech": [
+      {
+        "url": "https://images.unsplash.com/photo-1761583780469-2f206ec7b270?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2NjZ8MHwxfHNlYXJjaHwyfHxtb2Rlcm4lMjBhZ3JpY3VsdHVyZSUyMHRlY2hub2xvZ3klMjBkcm9uZSUyMHRyYWN0b3J8ZW58MHx8fHwxNzY4ODE2ODU0fDA&ixlib=rb-4.1.0&q=85",
+        "alt": "Drone over green field",
+        "category": "agri_tech"
+      },
+      {
+        "url": "https://images.unsplash.com/photo-1724337227697-bf212dc0aad8?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2NjZ8MHwxfHNlYXJjaHw0fHxtb2Rlcm4lMjBhZ3JpY3VsdHVyZSUyMHRlY2hub2xvZ3klMjBkcm9uZSUyMHRyYWN0b3J8ZW58MHx8fHwxNzY4ODE2ODU0fDA&ixlib=rb-4.1.0&q=85",
+        "alt": "Drone monitoring",
+        "category": "agri_tech"
+      }
+    ]
+  },
+  "icons": {
+    "primary_library": "lucide-react",
+    "marketing_library": "@phosphor-icons/react",
+    "usage": "Use thin strokes (1.5px) for elegance. Use filled icons for active states."
+  },
+  "universal_guidelines": [
+    "Avoid 'AI Slop': No generic centered layouts, no default blue/purple gradients.",
+    "Dark colors must be solid, not gradients.",
+    "Use glassmorphism with purpose (backdrop-blur-xl).",
+    "No 'transition: all'. Animate specific properties.",
+    "No text-align: center on the main App container.",
+    "Use 'sonner' for toasts.",
+    "Interactive elements must have data-testid.",
+    "Use 'Playfair Display' for headings to give a premium, organic feel.",
+    "Use 'Manrope' for body text for modern readability."
+  ],
+  "instructions_to_main_agent": [
+    "1. Install dependencies: yarn add @phosphor-icons/react lucide-react sonner clsx tailwind-merge",
+    "2. Configure Tailwind: Update tailwind.config.js with the new color palette and font families.",
+    "3. Set up Fonts: Import Playfair Display and Manrope in index.css or via Google Fonts.",
+    "4. Create Layouts: Build a 'MarketingLayout' (Tetris grid) and 'DashboardLayout' (Sidebar + Bento grid).",
+    "5. Build Components: Customize Shadcn components to match the 'Organic & Earthy' theme (rounded-xl, soft shadows).",
+    "6. Implement Pages: Start with the Landing Page using the Hero images and Parallax effects.",
+    "7. Dashboard: Implement the Farmer and Buyer dashboards using the Bento grid system.",
+    "8. Ensure Accessibility: Check contrast ratios, especially with the green primary color."
+  ]
+}
