@@ -39,24 +39,24 @@ const ProductsPage = () => {
   }, [selectedCategory, searchQuery]);
 
   const fetchProducts = async () => {
-    try {
-      setLoading(true);
-      const params = {};
-      if (selectedCategory !== 'all') params.category = selectedCategory;
-      if (searchQuery) params.search = searchQuery;
+  try {
+    setLoading(true);
+    const params = {};
+    if (selectedCategory !== 'all') params.category = selectedCategory;
+    if (searchQuery) params.search = searchQuery;
 
-      const response = await axios.get(`${API}/products`, { params });
-      setProducts(response.data);
-    } catch (error) {
-      console.error('Failed to fetch products', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+    const response = await axios.get(`${API}/products`, { params });
+    setProducts(response.data);
+  } catch (error) {
+    console.error('Failed to fetch products', error);
+  } finally {
+    setLoading(false);
+  }
+};
 
-  const handleSearch = () => {
-    fetchProducts();
-  };
+const handleSearch = () => {
+  fetchProducts();
+};
 
   return (
     <div className="min-h-screen bg-[#FAF9F6] py-12" data-testid="products-page">

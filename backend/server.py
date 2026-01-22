@@ -1,76 +1,128 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Depends, status
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, Path
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
-import os
-import logging
-from pathlib import Path
-from pydantic import BaseModel, Field, ConfigDict, EmailStr
+from pathlib import Path as FilePath
+from pydantic import BaseModel, EmailStr, ConfigDict
 from typing import List, Optional
-import uuid
 from datetime import datetime, timezone, timedelta
 from passlib.context import CryptContext
-from jose import JWTError, jwt
+from jose import jwt, JWTError
+import uuid
+import os
+import logging
+import razorpay
+import hmac
+import hashlib
 
-ROOT_DIR = Path(__file__).parent
-load_dotenv(ROOT_DIR / '.env')
+from fastapi_mail import FastMail, MessageSchema, ConnectionConfig
 
-mongo_url = os.environ['MONGO_URL']
-client = AsyncIOMotorClient(mongo_url)
-db = client[os.environ['DB_NAME']]
+# ================= ENV LOAD =================
+ROOT_DIR = FilePath(__file__).parent
+load_dotenv(ROOT_DIR / ".env")
 
-app = FastAPI()
+MONGO_URL = os.environ["MONGO_URL"]
+DB_NAME = os.environ["DB_NAME"]
+SECRET_KEY = os.environ["JWT_SECRET_KEY"]
+CORS_ORIGINS = os.environ.get("CORS_ORIGINS", "")
+
+RAZORPAY_KEY_ID = os.environ["RAZORPAY_KEY_ID"]
+RAZORPAY_KEY_SECRET = os.environ["RAZORPAY_KEY_SECRET"]
+
+MAIL_USERNAME = os.environ["MAIL_USERNAME"]
+MAIL_PASSWORD = os.environ["MAIL_PASSWORD"]
+MAIL_FROM = os.environ["MAIL_FROM"]
+MAIL_SERVER = os.environ["MAIL_SERVER"]
+MAIL_PORT = int(os.environ["MAIL_PORT"])
+ADMIN_EMAIL = os.environ["ADMIN_EMAIL"]
+
+origins = [o.strip() for o in CORS_ORIGINS.split(",") if o.strip()]
+
+# ================= DB =================
+client = AsyncIOMotorClient(MONGO_URL)
+db = client[DB_NAME]
+
+# ================= RAZORPAY =================
+razorpay_client = razorpay.Client(
+    auth=(RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET)
+)
+
+# ================= EMAIL CONFIG =================
+mail_conf = ConnectionConfig(
+    MAIL_USERNAME=MAIL_USERNAME,
+    MAIL_PASSWORD=MAIL_PASSWORD,
+    MAIL_FROM=MAIL_FROM,
+    MAIL_SERVER=MAIL_SERVER,
+    MAIL_PORT=MAIL_PORT,
+    MAIL_STARTTLS=True,
+    MAIL_SSL_TLS=False,
+    USE_CREDENTIALS=True,
+)
+
+# ================= APP =================
+app = FastAPI(title="Agriculture API")
 api_router = APIRouter(prefix="/api")
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins or ["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# ================= AUTH =================
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 security = HTTPBearer()
-
-SECRET_KEY = os.environ.get("JWT_SECRET_KEY", "your-secret-key-change-in-production")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7
 
-def hash_password(password: str) -> str:
+
+def hash_password(password: str):
     return pwd_context.hash(password)
 
-def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return pwd_context.verify(plain_password, hashed_password)
 
-def create_access_token(data: dict) -> str:
-    to_encode = data.copy()
-    expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-    return encoded_jwt
+def verify_password(password: str, hashed: str):
+    return pwd_context.verify(password, hashed)
 
-async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
-    token = credentials.credentials
+
+def create_access_token(data: dict):
+    payload = data.copy()
+    payload["exp"] = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
+
+
+async def get_current_user(
+    credentials: HTTPAuthorizationCredentials = Depends(security)
+):
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        user_id: str = payload.get("sub")
-        if user_id is None:
-            raise HTTPException(status_code=401, detail="Invalid token")
-        user = await db.users.find_one({"id": user_id}, {"_id": 0})
-        if user is None:
+        payload = jwt.decode(credentials.credentials, SECRET_KEY, algorithms=[ALGORITHM])
+        user = await db.users.find_one({"id": payload.get("sub")}, {"_id": 0})
+        if not user:
             raise HTTPException(status_code=401, detail="User not found")
         return user
     except JWTError:
         raise HTTPException(status_code=401, detail="Invalid token")
 
+
+# ================= MODELS =================
 class UserRole:
     FARMER = "farmer"
     BUYER = "buyer"
     ADMIN = "admin"
 
+
 class User(BaseModel):
     model_config = ConfigDict(extra="ignore")
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    id: str
     email: EmailStr
     name: str
     role: str
-    phone: Optional[str] = None
-    location: Optional[str] = None
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    phone: Optional[str]
+    location: Optional[str]
+    created_at: datetime
+
 
 class UserCreate(BaseModel):
     email: EmailStr
@@ -80,25 +132,21 @@ class UserCreate(BaseModel):
     phone: Optional[str] = None
     location: Optional[str] = None
 
+
 class UserLogin(BaseModel):
     email: EmailStr
     password: str
+
 
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
     user: User
 
-class ProductCategory:
-    VEGETABLES = "vegetables"
-    FRUITS = "fruits"
-    GRAINS = "grains"
-    DAIRY = "dairy"
-    ORGANIC = "organic"
 
 class Product(BaseModel):
     model_config = ConfigDict(extra="ignore")
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    id: str
     name: str
     description: str
     category: str
@@ -108,9 +156,10 @@ class Product(BaseModel):
     farmer_id: str
     farmer_name: str
     location: str
-    image_url: Optional[str] = None
-    available: bool = True
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    image_url: Optional[str]
+    available: bool
+    created_at: datetime
+
 
 class ProductCreate(BaseModel):
     name: str
@@ -122,19 +171,6 @@ class ProductCreate(BaseModel):
     location: str
     image_url: Optional[str] = None
 
-class ProductUpdate(BaseModel):
-    name: Optional[str] = None
-    description: Optional[str] = None
-    price: Optional[float] = None
-    quantity: Optional[float] = None
-    available: Optional[bool] = None
-    image_url: Optional[str] = None
-
-class OrderStatus:
-    PENDING = "pending"
-    CONFIRMED = "confirmed"
-    DELIVERED = "delivered"
-    CANCELLED = "cancelled"
 
 class OrderItem(BaseModel):
     product_id: str
@@ -144,9 +180,16 @@ class OrderItem(BaseModel):
     price: float
     total: float
 
+
+class OrderCreate(BaseModel):
+    items: List[OrderItem]
+    delivery_address: str
+    payment_method: str
+
+
 class Order(BaseModel):
     model_config = ConfigDict(extra="ignore")
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    id: str
     buyer_id: str
     buyer_name: str
     buyer_email: str
@@ -154,25 +197,11 @@ class Order(BaseModel):
     farmer_name: str
     items: List[OrderItem]
     total_amount: float
-    status: str = OrderStatus.PENDING
+    status: str
     delivery_address: str
-    payment_method: str = "COD"
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    payment_method: str
+    created_at: datetime
 
-class OrderCreate(BaseModel):
-    items: List[OrderItem]
-    delivery_address: str
-    payment_method: str = "COD"
-
-class ContactMessage(BaseModel):
-    model_config = ConfigDict(extra="ignore")
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    name: str
-    email: EmailStr
-    phone: Optional[str] = None
-    subject: str
-    message: str
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class ContactMessageCreate(BaseModel):
     name: str
@@ -181,280 +210,298 @@ class ContactMessageCreate(BaseModel):
     subject: str
     message: str
 
+
+# ================= ROUTES =================
 @api_router.get("/")
 async def root():
-    return {"message": "Agriculture Website API"}
+    return {"message": "Agriculture API running"}
 
+
+# -------- AUTH --------
 @api_router.post("/auth/register", response_model=TokenResponse)
-async def register(user_data: UserCreate):
-    existing_user = await db.users.find_one({"email": user_data.email}, {"_id": 0})
-    if existing_user:
+async def register(data: UserCreate):
+    if await db.users.find_one({"email": data.email}):
         raise HTTPException(status_code=400, detail="Email already registered")
-    
-    hashed_password = hash_password(user_data.password)
-    user = User(
-        email=user_data.email,
-        name=user_data.name,
-        role=user_data.role,
-        phone=user_data.phone,
-        location=user_data.location
-    )
-    
-    user_doc = user.model_dump()
-    user_doc["password"] = hashed_password
-    user_doc["created_at"] = user_doc["created_at"].isoformat()
-    
-    await db.users.insert_one(user_doc)
-    
-    access_token = create_access_token(data={"sub": user.id, "email": user.email, "role": user.role})
-    return TokenResponse(access_token=access_token, user=user)
+
+    user = {
+        "id": str(uuid.uuid4()),
+        "email": data.email,
+        "name": data.name,
+        "role": data.role,
+        "phone": data.phone,
+        "location": data.location,
+        "password": hash_password(data.password),
+        "created_at": datetime.now(timezone.utc),
+    }
+
+    await db.users.insert_one(user)
+
+    token = create_access_token({"sub": user["id"], "role": user["role"]})
+    user.pop("password")
+
+    return {"access_token": token, "user": user}
+
 
 @api_router.post("/auth/login", response_model=TokenResponse)
-async def login(login_data: UserLogin):
-    user_doc = await db.users.find_one({"email": login_data.email}, {"_id": 0})
-    if not user_doc:
+async def login(data: UserLogin):
+    user = await db.users.find_one({"email": data.email})
+    if not user or not verify_password(data.password, user["password"]):
         raise HTTPException(status_code=401, detail="Invalid credentials")
-    
-    if not verify_password(login_data.password, user_doc["password"]):
-        raise HTTPException(status_code=401, detail="Invalid credentials")
-    
-    user_doc.pop("password")
-    if isinstance(user_doc["created_at"], str):
-        user_doc["created_at"] = datetime.fromisoformat(user_doc["created_at"])
-    
-    user = User(**user_doc)
-    access_token = create_access_token(data={"sub": user.id, "email": user.email, "role": user.role})
-    return TokenResponse(access_token=access_token, user=user)
+
+    token = create_access_token({"sub": user["id"], "role": user["role"]})
+    user.pop("password")
+    user.pop("_id", None)
+
+    return {"access_token": token, "user": user}
+
 
 @api_router.get("/auth/me", response_model=User)
-async def get_me(current_user: dict = Depends(get_current_user)):
-    if isinstance(current_user["created_at"], str):
-        current_user["created_at"] = datetime.fromisoformat(current_user["created_at"])
-    return User(**current_user)
+async def me(current_user=Depends(get_current_user)):
+    return current_user
 
+
+# -------- PRODUCTS --------
 @api_router.get("/products", response_model=List[Product])
-async def get_products(category: Optional[str] = None, search: Optional[str] = None):
-    query = {"available": True}
-    if category:
-        query["category"] = category
-    if search:
-        query["$or"] = [
-            {"name": {"$regex": search, "$options": "i"}},
-            {"description": {"$regex": search, "$options": "i"}}
-        ]
-    
-    products = await db.products.find(query, {"_id": 0}).to_list(1000)
-    for product in products:
-        if isinstance(product["created_at"], str):
-            product["created_at"] = datetime.fromisoformat(product["created_at"])
-    return products
+async def get_products():
+    return await db.products.find({"available": True}, {"_id": 0}).to_list(1000)
+
 
 @api_router.get("/products/{product_id}", response_model=Product)
 async def get_product(product_id: str):
     product = await db.products.find_one({"id": product_id}, {"_id": 0})
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
-    if isinstance(product["created_at"], str):
-        product["created_at"] = datetime.fromisoformat(product["created_at"])
-    return Product(**product)
-
-@api_router.post("/products", response_model=Product)
-async def create_product(product_data: ProductCreate, current_user: dict = Depends(get_current_user)):
-    if current_user["role"] != UserRole.FARMER:
-        raise HTTPException(status_code=403, detail="Only farmers can create products")
-    
-    product = Product(
-        **product_data.model_dump(),
-        farmer_id=current_user["id"],
-        farmer_name=current_user["name"]
-    )
-    
-    product_doc = product.model_dump()
-    product_doc["created_at"] = product_doc["created_at"].isoformat()
-    
-    await db.products.insert_one(product_doc)
     return product
 
-@api_router.put("/products/{product_id}", response_model=Product)
-async def update_product(product_id: str, update_data: ProductUpdate, current_user: dict = Depends(get_current_user)):
-    product = await db.products.find_one({"id": product_id}, {"_id": 0})
-    if not product:
-        raise HTTPException(status_code=404, detail="Product not found")
-    
-    if product["farmer_id"] != current_user["id"] and current_user["role"] != UserRole.ADMIN:
-        raise HTTPException(status_code=403, detail="Not authorized")
-    
-    update_dict = {k: v for k, v in update_data.model_dump().items() if v is not None}
-    if update_dict:
-        await db.products.update_one({"id": product_id}, {"$set": update_dict})
-        product.update(update_dict)
-    
-    if isinstance(product["created_at"], str):
-        product["created_at"] = datetime.fromisoformat(product["created_at"])
-    return Product(**product)
+
+@api_router.post("/products", response_model=Product)
+async def create_product(data: ProductCreate, user=Depends(get_current_user)):
+    if user["role"] != UserRole.FARMER:
+        raise HTTPException(status_code=403, detail="Only farmers can add products")
+
+    product = {
+        "id": str(uuid.uuid4()),
+        **data.model_dump(),
+        "farmer_id": user["id"],
+        "farmer_name": user["name"],
+        "available": True,
+        "created_at": datetime.now(timezone.utc),
+    }
+
+    await db.products.insert_one(product)
+    return product
+
 
 @api_router.delete("/products/{product_id}")
-async def delete_product(product_id: str, current_user: dict = Depends(get_current_user)):
-    product = await db.products.find_one({"id": product_id}, {"_id": 0})
+async def delete_product(product_id: str, user=Depends(get_current_user)):
+    product = await db.products.find_one({"id": product_id})
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
-    
-    if product["farmer_id"] != current_user["id"] and current_user["role"] != UserRole.ADMIN:
+
+    if user["role"] != UserRole.ADMIN and product["farmer_id"] != user["id"]:
         raise HTTPException(status_code=403, detail="Not authorized")
-    
+
     await db.products.delete_one({"id": product_id})
     return {"message": "Product deleted successfully"}
 
-@api_router.get("/farmer/products", response_model=List[Product])
-async def get_farmer_products(current_user: dict = Depends(get_current_user)):
-    if current_user["role"] != UserRole.FARMER:
-        raise HTTPException(status_code=403, detail="Only farmers can access this endpoint")
-    
-    products = await db.products.find({"farmer_id": current_user["id"]}, {"_id": 0}).to_list(1000)
-    for product in products:
-        if isinstance(product["created_at"], str):
-            product["created_at"] = datetime.fromisoformat(product["created_at"])
-    return products
 
+# -------- ORDERS --------
 @api_router.post("/orders", response_model=Order)
-async def create_order(order_data: OrderCreate, current_user: dict = Depends(get_current_user)):
-    if current_user["role"] != UserRole.BUYER:
+async def create_order(data: OrderCreate, user=Depends(get_current_user)):
+    if user["role"] != UserRole.BUYER:
         raise HTTPException(status_code=403, detail="Only buyers can create orders")
-    
-    if not order_data.items:
-        raise HTTPException(status_code=400, detail="Order must have at least one item")
-    
-    farmer_id = None
-    total_amount = 0
-    for item in order_data.items:
-        product = await db.products.find_one({"id": item.product_id}, {"_id": 0})
-        if not product:
-            raise HTTPException(status_code=404, detail=f"Product {item.product_id} not found")
-        if not farmer_id:
-            farmer_id = product["farmer_id"]
-        total_amount += item.total
-    
-    farmer = await db.users.find_one({"id": farmer_id}, {"_id": 0})
-    
-    order = Order(
-        buyer_id=current_user["id"],
-        buyer_name=current_user["name"],
-        buyer_email=current_user["email"],
-        farmer_id=farmer_id,
-        farmer_name=farmer["name"],
-        items=order_data.items,
-        total_amount=total_amount,
-        delivery_address=order_data.delivery_address,
-        payment_method=order_data.payment_method
-    )
-    
-    order_doc = order.model_dump()
-    order_doc["created_at"] = order_doc["created_at"].isoformat()
-    order_doc["items"] = [item.model_dump() for item in order.items]
-    
-    await db.orders.insert_one(order_doc)
-    return order
 
-@api_router.get("/orders", response_model=List[Order])
-async def get_orders(current_user: dict = Depends(get_current_user)):
-    if current_user["role"] == UserRole.BUYER:
-        query = {"buyer_id": current_user["id"]}
-    elif current_user["role"] == UserRole.FARMER:
-        query = {"farmer_id": current_user["id"]}
-    elif current_user["role"] == UserRole.ADMIN:
-        query = {}
-    else:
-        raise HTTPException(status_code=403, detail="Not authorized")
-    
-    orders = await db.orders.find(query, {"_id": 0}).to_list(1000)
-    for order in orders:
-        if isinstance(order["created_at"], str):
-            order["created_at"] = datetime.fromisoformat(order["created_at"])
-    return orders
+    total = sum(item.total for item in data.items)
+    product = await db.products.find_one({"id": data.items[0].product_id})
 
-@api_router.get("/orders/{order_id}", response_model=Order)
-async def get_order(order_id: str, current_user: dict = Depends(get_current_user)):
-    order = await db.orders.find_one({"id": order_id}, {"_id": 0})
-    if not order:
-        raise HTTPException(status_code=404, detail="Order not found")
-    
-    if current_user["role"] not in [UserRole.ADMIN] and \
-       order["buyer_id"] != current_user["id"] and \
-       order["farmer_id"] != current_user["id"]:
-        raise HTTPException(status_code=403, detail="Not authorized")
-    
-    if isinstance(order["created_at"], str):
-        order["created_at"] = datetime.fromisoformat(order["created_at"])
-    return Order(**order)
-
-@api_router.put("/orders/{order_id}/status")
-async def update_order_status(order_id: str, status: str, current_user: dict = Depends(get_current_user)):
-    order = await db.orders.find_one({"id": order_id}, {"_id": 0})
-    if not order:
-        raise HTTPException(status_code=404, detail="Order not found")
-    
-    if current_user["role"] not in [UserRole.ADMIN, UserRole.FARMER] and order["farmer_id"] != current_user["id"]:
-        raise HTTPException(status_code=403, detail="Not authorized")
-    
-    await db.orders.update_one({"id": order_id}, {"$set": {"status": status}})
-    return {"message": "Order status updated successfully"}
-
-@api_router.post("/contact", response_model=ContactMessage)
-async def create_contact_message(message_data: ContactMessageCreate):
-    message = ContactMessage(**message_data.model_dump())
-    message_doc = message.model_dump()
-    message_doc["created_at"] = message_doc["created_at"].isoformat()
-    await db.contact_messages.insert_one(message_doc)
-    return message
-
-@api_router.get("/admin/users", response_model=List[User])
-async def get_all_users(current_user: dict = Depends(get_current_user)):
-    if current_user["role"] != UserRole.ADMIN:
-        raise HTTPException(status_code=403, detail="Admin access required")
-    
-    users = await db.users.find({}, {"_id": 0, "password": 0}).to_list(1000)
-    for user in users:
-        if isinstance(user["created_at"], str):
-            user["created_at"] = datetime.fromisoformat(user["created_at"])
-    return users
-
-@api_router.get("/admin/stats")
-async def get_admin_stats(current_user: dict = Depends(get_current_user)):
-    if current_user["role"] != UserRole.ADMIN:
-        raise HTTPException(status_code=403, detail="Admin access required")
-    
-    total_users = await db.users.count_documents({})
-    total_farmers = await db.users.count_documents({"role": UserRole.FARMER})
-    total_buyers = await db.users.count_documents({"role": UserRole.BUYER})
-    total_products = await db.products.count_documents({})
-    total_orders = await db.orders.count_documents({})
-    pending_orders = await db.orders.count_documents({"status": OrderStatus.PENDING})
-    
-    return {
-        "total_users": total_users,
-        "total_farmers": total_farmers,
-        "total_buyers": total_buyers,
-        "total_products": total_products,
-        "total_orders": total_orders,
-        "pending_orders": pending_orders
+    order = {
+        "id": str(uuid.uuid4()),
+        "buyer_id": user["id"],
+        "buyer_name": user["name"],
+        "buyer_email": user["email"],
+        "farmer_id": product["farmer_id"],
+        "farmer_name": product["farmer_name"],
+        "items": [item.model_dump() for item in data.items],
+        "total_amount": total,
+        "status": "pending",
+        "delivery_address": data.delivery_address,
+        "payment_method": data.payment_method,
+        "created_at": datetime.now(timezone.utc),
     }
 
+    await db.orders.insert_one(order)
+    return order
+
+
+@api_router.get("/orders", response_model=List[Order])
+async def get_orders(user=Depends(get_current_user)):
+    if user["role"] == UserRole.BUYER:
+        q = {"buyer_id": user["id"]}
+    elif user["role"] == UserRole.FARMER:
+        q = {"farmer_id": user["id"]}
+    else:
+        q = {}
+
+    return await db.orders.find(q, {"_id": 0}).to_list(1000)
+
+
+@api_router.put("/orders/{order_id}/status")
+async def update_order_status(order_id: str, status: str, user=Depends(get_current_user)):
+    await db.orders.update_one({"id": order_id}, {"$set": {"status": status}})
+    return {"message": "Order status updated"}
+
+
+# -------- RAZORPAY --------
+@api_router.post("/payments/create-order")
+async def create_razorpay_order():
+    order = razorpay_client.order.create({
+        "amount": 50000,
+        "currency": "INR",
+        "payment_capture": 1
+    })
+    return {
+        "order_id": order["id"],
+        "amount": order["amount"],
+        "key": RAZORPAY_KEY_ID
+    }
+
+
+@api_router.post("/payments/verify")
+async def verify_payment(data: dict):
+    msg = f"{data['razorpay_order_id']}|{data['razorpay_payment_id']}"
+    signature = hmac.new(
+        RAZORPAY_KEY_SECRET.encode(),
+        msg.encode(),
+        hashlib.sha256
+    ).hexdigest()
+
+    if signature != data["razorpay_signature"]:
+        raise HTTPException(status_code=400, detail="Payment verification failed")
+
+    return {"success": True}
+
+@api_router.post("/contact")
+async def contact(data: ContactMessageCreate):
+    # 1. Save to MongoDB
+    await db.contact_messages.insert_one({
+        "id": str(uuid.uuid4()),
+        **data.model_dump(),
+        "created_at": datetime.now(timezone.utc)
+    })
+
+    fm = FastMail(mail_conf)
+    current_year = datetime.now().year
+    timestamp = datetime.now().strftime("%d %b %Y, %I:%M %p")
+
+    # ================= ADMIN EMAIL (Forest & Professional) =================
+    # Primary Color: #16423C (Deep Forest) | Accent: #C6972E (Harvest Gold)
+    admin_html = f"""
+    <div style="background:#F0F4F1;padding:40px 10px;font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;">
+      <div style="max-width:620px;margin:auto;background:#ffffff;border-radius:16px;box-shadow:0 15px 40px rgba(22, 66, 60, 0.1);overflow:hidden;border: 1px solid #E1E8E3;">
+        
+        <div style="background:linear-gradient(135deg, #16423C, #6A9C89);padding:30px;color:white;text-align:left;">
+          <h1 style="margin:0;font-size:22px;letter-spacing:0.5px;">🌿 New Marketplace Inquiry</h1>
+          <p style="margin:6px 0 0;font-size:14px;opacity:0.9;">Priority: Support Required</p>
+        </div>
+
+        <div style="padding:32px;color:#2D3436;">
+          <h3 style="color:#16423C;margin-top:0;border-bottom:2px solid #F0F4F1;padding-bottom:10px;">User Details</h3>
+          <table style="width:100%;font-size:15px;border-collapse:collapse;">
+            <tr>
+              <td style="padding:12px 0;border-bottom:1px solid #F0F0F0;color:#636E72;width:100px;"><strong>👤 Name</strong></td>
+              <td style="padding:12px 0;border-bottom:1px solid #F0F0F0;color:#1A202C;">{data.name}</td>
+            </tr>
+            <tr>
+              <td style="padding:12px 0;border-bottom:1px solid #F0F0F0;color:#636E72;"><strong>📧 Email</strong></td>
+              <td style="padding:12px 0;border-bottom:1px solid #F0F0F0;"><a href="mailto:{data.email}" style="color:#6A9C89;text-decoration:none;">{data.email}</a></td>
+            </tr>
+            <tr>
+              <td style="padding:12px 0;border-bottom:1px solid #F0F0F0;color:#636E72;"><strong>📞 Phone</strong></td>
+              <td style="padding:12px 0;border-bottom:1px solid #F0F0F0;color:#1A202C;">{data.phone}</td>
+            </tr>
+          </table>
+
+          <div style="margin-top:30px;padding:20px;background:#F9FBF9;border-radius:12px;border-left:5px solid #C6972E;">
+            <strong style="color:#16423C;display:block;margin-bottom:10px;font-size:16px;">💬 Message Content</strong>
+            <p style="margin:0;font-size:15px;line-height:1.7;color:#4A4A4A;">{data.message}</p>
+          </div>
+        </div>
+
+        <div style="background:#F1F5F2;padding:15px;text-align:center;font-size:12px;color:#6A9C89;font-weight:bold;">
+          🕒 System Timestamp: {timestamp}
+        </div>
+      </div>
+    </div>
+    """
+
+    # ================= USER EMAIL (Warm & Welcoming) =================
+    # Primary Color: #22C55E (Growth Green) | Info Box: #2563EB (Trust Blue)
+    user_html = f"""
+    <div style="background:#F7F9F7;padding:40px 10px;font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;">
+      <div style="max-width:620px;margin:auto;background:#ffffff;border-radius:20px;box-shadow:0 20px 50px rgba(0,0,0,0.05);overflow:hidden;">
+        
+        <div style="background:linear-gradient(135deg, #22C55E, #16A34A);padding:45px 30px;text-align:center;color:white;">
+          <div style="background:rgba(255,255,255,0.2);width:70px;height:70px;line-height:75px;border-radius:50%;margin:0 auto 20px;font-size:35px;">🌱</div>
+          <h1 style="margin:0;font-size:26px;">Message Received!</h1>
+          <p style="margin-top:10px;font-size:15px;opacity:0.9;">Thank you for reaching out to AgriSmart</p>
+        </div>
+
+        <div style="padding:40px;color:#2D3436;">
+          <p style="font-size:16px;">Hi <strong>{data.name}</strong>,</p>
+          <p style="font-size:15px;line-height:1.8;color:#4B5563;">
+            We've successfully received your inquiry regarding <strong>"{data.subject}"</strong>. Our team of agricultural specialists is currently reviewing your details.
+          </p>
+
+          <div style="margin:30px 0;padding:20px;background:#F0F7FF;border-radius:12px;border-left:5px solid #2563EB;display:flex;align-items:center;">
+            <p style="margin:0;font-size:14px;color:#1E40AF;">
+              ⏱ <strong>Estimated Response:</strong> Our experts usually reply within <strong>24 hours</strong>.
+            </p>
+          </div>
+
+          <p style="margin-top:40px;font-size:15px;color:#16423C;">
+            Best Regards,<br>
+            <strong style="font-size:17px;">AgriSmart Support Team</strong>
+          </p>
+        </div>
+
+        <div style="background:#16423C;padding:25px;text-align:center;font-size:12px;color:#ffffff;opacity:0.8;">
+          © {current_year} AgriSmart Marketplace • Empowering Local Farmers
+          <br><br>
+          <div style="font-size:10px;opacity:0.6;">This is an automated confirmation. Please do not reply directly to this email.</div>
+        </div>
+      </div>
+    </div>
+    """
+
+    # 2. Send Admin Notification
+    await fm.send_message(
+        MessageSchema(
+            subject=f"📩 New Contact: {data.subject}",
+            recipients=[ADMIN_EMAIL],
+            body=admin_html,
+            subtype="html",
+        )
+    )
+
+    # 3. Send User Confirmation
+    await fm.send_message(
+        MessageSchema(
+            subject="✅ We received your message - AgriSmart",
+            recipients=[data.email],
+            body=user_html,
+            subtype="html",
+        )
+    )
+
+    return {"message": "Message sent successfully"}
+
+
+
+# ================= FINAL =================
 app.include_router(api_router)
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_credentials=True,
-    allow_origins=os.environ.get('CORS_ORIGINS', '*').split(','),
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
-
 @app.on_event("shutdown")
-async def shutdown_db_client():
+async def shutdown():
     client.close()
+
+logging.basicConfig(level=logging.INFO)
