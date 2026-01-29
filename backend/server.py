@@ -394,7 +394,6 @@ async def contact(data: ContactMessageCreate):
     timestamp = datetime.now().strftime("%d %b %Y, %I:%M %p")
 
     # ================= ADMIN EMAIL (Forest & Professional) =================
-    # Primary Color: #16423C (Deep Forest) | Accent: #C6972E (Harvest Gold)
     admin_html = f"""
     <div style="background:#F0F4F1;padding:40px 10px;font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;">
       <div style="max-width:620px;margin:auto;background:#ffffff;border-radius:16px;box-shadow:0 15px 40px rgba(22, 66, 60, 0.1);overflow:hidden;border: 1px solid #E1E8E3;">
