@@ -5,37 +5,42 @@
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <meta name="theme-color" content="#000000" />
         <meta name="description" content="A product of emergent" />
-       
+
+        <!-- ================= FAVICON (FIXED) ================= -->
+        <link rel="icon" type="image/jpeg" sizes="32x32" href="./favicon.jpg" />
+        <link rel="icon" type="image/jpeg" sizes="16x16" href="./favicon.jpg" />
+        <link rel="apple-touch-icon" sizes="180x180" href="./favicon.jpg" />
+        <!-- =================================================== -->
+
         <title>AgriPortal</title>
+
         <script src="https://assets.emergent.sh/scripts/emergent-main.js"></script>
         <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
 
-    
         <script>
             // Only load visual edit scripts when inside an iframe
             if (window.self !== window.top) {
-                // Load debug monitor script
                 var debugMonitorScript = document.createElement('script');
-                debugMonitorScript.src = 'https://assets.emergent.sh/scripts/debug-monitor.js';
+                debugMonitorScript.src =
+                    'https://assets.emergent.sh/scripts/debug-monitor.js';
                 document.head.appendChild(debugMonitorScript);
 
-                // Configure Tailwind
                 window.tailwind = window.tailwind || {};
                 tailwind.config = {
                     corePlugins: { preflight: false },
                 };
 
-                // Load Tailwind CDN
                 var tailwindScript = document.createElement('script');
                 tailwindScript.src = 'https://cdn.tailwindcss.com';
                 document.head.appendChild(tailwindScript);
             }
         </script>
     </head>
+
     <body>
         <noscript>You need to enable JavaScript to run this app.</noscript>
         <div id="root"></div>
-        
+
         <script>
             !(function (t, e) {
                 var o, n, p, r;
@@ -67,9 +72,10 @@
                                     "-assets.i.posthog.com",
                                 ) + "/static/array.js"),
                             (r =
-                                t.getElementsByTagName(
-                                    "script",
-                                )[0]).parentNode.insertBefore(p, r);
+                                t.getElementsByTagName("script")[0]).parentNode.insertBefore(
+                                p,
+                                r,
+                            );
                         var u = e;
                         for (
                             void 0 !== a ? (u = e[a] = []) : (a = "posthog"),
@@ -100,7 +106,7 @@
             })(document, window.posthog || []);
             posthog.init("phc_xAvL2Iq4tFmANRE7kzbKwaSqp1HJjN7x48s3vr0CMjs", {
                 api_host: "https://us.i.posthog.com",
-                person_profiles: "identified_only", // or 'always' to create profiles for anonymous users as well,
+                person_profiles: "identified_only",
                 session_recording: {
                     recordCrossOriginIframes: true,
                 },
