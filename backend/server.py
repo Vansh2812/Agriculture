@@ -18,6 +18,9 @@ import hashlib
 
 from fastapi_mail import FastMail, MessageSchema, ConnectionConfig
 
+# ================= STARTUP DEBUG (ADDED) =================
+print("🚀 server.py loaded")
+
 ROOT_DIR = FilePath(__file__).parent
 load_dotenv(ROOT_DIR / ".env")
 
@@ -56,8 +59,9 @@ mail_conf = ConnectionConfig(
     USE_CREDENTIALS=True,
 )
 
-
 app = FastAPI(title="Agriculture API")
+print("✅ FastAPI app created")
+
 api_router = APIRouter(prefix="/api")
 
 app.add_middleware(
@@ -376,6 +380,8 @@ async def verify_payment(data: dict):
 
     return {"success": True}
 
+
+# -------- CONTACT --------
 @api_router.post("/contact")
 async def contact(data: ContactMessageCreate):
     # 1. Save to MongoDB
@@ -491,13 +497,26 @@ async def contact(data: ContactMessageCreate):
     return {"message": "Message sent successfully"}
 
 
-
 # ================= FINAL =================
 app.include_router(api_router)
 
 @app.on_event("shutdown")
 async def shutdown():
     client.close()
-    
 
 logging.basicConfig(level=logging.INFO)
+
+# ================= RENDER STARTUP (ADDED – MOST IMPORTANT) =================
+if __name__ == "__main__":
+    import uvicorn
+
+    port = int(os.environ.get("PORT", 8000))
+    print(f"🌍 Starting server on port {port}")
+
+    uvicorn.run(
+        "server:app",
+        host="0.0.0.0",
+        port=port,
+        reload=False
+    )
+# ================= END OF FILE =================
